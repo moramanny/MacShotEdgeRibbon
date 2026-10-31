@@ -39,10 +39,16 @@ A one-shot timer uses the persisted areaResetSeconds preference (0, 15, 30, 60).
 It is invalidated when capture begins and rearmed after panel restoration.
 Reset changes only captureMode; activeMode remains the current session's mode.
 
-The restoreFocus preference enables one guarded activation of the foreground
-application remembered when capture was requested. The attempt runs 250 ms
-after panel restoration, only if MacShot remains foreground. A generation token
-cancels stale requests when another capture or History action begins. Window
-metadata heuristics skip capture overlays and large normal editor/history
-windows. No Accessibility permission or explicit browser-window activation is
-used. This behavior must be verified against the installed MacShot version.
+The restoreFocus preference enables bounded activation attempts at 0, 150,
+400, and 800 ms after panel restoration. User input, a new capture/History
+action, or switching to another external app cancels remaining attempts.
+The target is the last non-MacShot, non-ribbon foreground application, refreshed
+immediately before capture so countdown users can switch apps.
+
+Capture URLs use NSWorkspace.OpenConfiguration.activates = false. This avoids
+activating MacShot before its own URL handler remembers the prior application.
+The fallback handoff uses yieldActivation/activate on macOS 14+, and
+activateIgnoringOtherApps on earlier systems. Window metadata heuristics still
+skip capture overlays and large normal editor/history windows. No Accessibility
+permission or explicit browser-window activation is used. Version 0.18 failed
+the owner's focus test; version 0.19 requires native testing.

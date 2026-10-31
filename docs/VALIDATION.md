@@ -29,3 +29,12 @@ MacShot-version compatibility based on one successful personal test.
 - AppKit compilation and GUI behavior remain unverified until built on a Mac.
 - Verify focus restoration does not interrupt the editor, history, scrolling, or video.
 - Verify idle mode reset pauses during capture and restarts after completion/cancel.
+
+## 0.19 validation
+- Owner reports 0.18 did not restore keyboard focus.
+- Inspected upstream MacShot URL handling and prior-app activation implementation.
+- Changed launch to avoid activation before MacShot snapshots its previous app.
+- Shell syntax and diff whitespace checks passed; AppKit compilation unavailable here.
+- On Mac: capture from browser, Finder, Terminal; immediately test Command–`/typing.
+- Test Escape, delay and changing apps during countdown, clicking the preview to edit,
+  History, scrolling, and video. Check that focus retries yield to user interaction.

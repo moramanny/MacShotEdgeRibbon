@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var areaResetTimer: Timer?
     var restoreFocus = true
     var previousApplication: NSRunningApplication?
+    var lastExternalApplication: NSRunningApplication?
     var focusGeneration = UUID()
     let defaults = UserDefaults.standard
     var screen: NSScreen { NSScreen.main ?? NSScreen.screens[0] }
@@ -142,9 +143,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsMenu = menu
         NotificationCenter.default.addObserver(self, selector: #selector(screenChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(appDeactivated(_:)), name: NSWorkspace.didDeactivateApplicationNotification, object: nil)
+        rememberExternalApplication(NSWorkspace.shared.frontmostApplication)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(appActivated(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         render()
         panel.orderFrontRegardless()
         scheduleAreaReset()
+    }
+    func rememberExternalApplication(_ application: NSRunningApplication?) {
+        guard let application = application,
+              application.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+              !(application.bundleIdentifier ?? "").lowercased().contains("macshot"),
+              !application.isTerminated else { return }
+        lastExternalApplication = application
+    }
+    @objc func appActivated(_ notification: Notification) {
+        rememberExternalApplication(notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
     }
     func add(_ menu: NSMenu, _ title: String, _ action: Selector) {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -325,25 +338,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               previous.processIdentifier != ProcessInfo.processInfo.processIdentifier,
               !(previous.bundleIdentifier ?? "").lowercased().contains("macshot") else { return }
         let generation = focusGeneration
-        // One short attempt, not a loop that could fight deliberate app changes.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            guard let self = self, self.restoreFocus, !self.capturePending,
-                  self.focusGeneration == generation, !previous.isTerminated,
-                  let front = NSWorkspace.shared.frontmostApplication,
-                  (front.bundleIdentifier ?? "").lowercased().contains("macshot"),
-                  let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return }
-            // Leave selection/recording HUDs and normal editor/history windows alone.
-            let busy = windows.contains { info in
-                guard let pid = info[kCGWindowOwnerPID as String] as? NSNumber,
-                      pid.int32Value == front.processIdentifier,
-                      let layer = info[kCGWindowLayer as String] as? NSNumber,
-                      let bounds = info[kCGWindowBounds as String] as? [String: Any],
-                      let width = bounds["Width"] as? NSNumber,
-                      let height = bounds["Height"] as? NSNumber else { return false }
-                return layer.intValue == 257 || layer.intValue == 258 ||
-                    (layer.intValue == 0 && width.doubleValue >= 500 && height.doubleValue >= 300)
+        // Brief bounded retries handle preview creation; stop on any deliberate input
+        // or switch to another external app. Never keep fighting the user's focus.
+        let started = ProcessInfo.processInfo.systemUptime
+        for delay in [0.0, 0.15, 0.4, 0.8] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, self.restoreFocus, !self.capturePending,
+                      self.focusGeneration == generation, !previous.isTerminated,
+                      let front = NSWorkspace.shared.frontmostApplication else { return }
+                let idleEvents: [CGEventType] = [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown, .scrollWheel]
+                if idleEvents.contains(where: {
+                    CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < ProcessInfo.processInfo.systemUptime - started
+                }) { self.focusGeneration = UUID(); return }
+                let frontIsMacShot = (front.bundleIdentifier ?? "").lowercased().contains("macshot")
+                let frontIsRibbon = front.processIdentifier == ProcessInfo.processInfo.processIdentifier
+                let frontIsPrevious = front.processIdentifier == previous.processIdentifier
+                guard frontIsMacShot || frontIsRibbon || frontIsPrevious else { self.focusGeneration = UUID(); return }
+                let macShotPIDs = Set(NSWorkspace.shared.runningApplications.filter {
+                    ($0.bundleIdentifier ?? "").lowercased().contains("macshot") &&
+                    $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
+                }.map { $0.processIdentifier })
+                guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return }
+                // Do not interrupt a remaining selection HUD or an intentionally
+                // opened editor/history window. Preview thumbnails are floating panels.
+                let busy = windows.contains { info in
+                    guard let pid = info[kCGWindowOwnerPID as String] as? NSNumber,
+                          macShotPIDs.contains(pid.int32Value),
+                          let layer = info[kCGWindowLayer as String] as? NSNumber,
+                          let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                          let width = bounds["Width"] as? NSNumber,
+                          let height = bounds["Height"] as? NSNumber else { return false }
+                    return layer.intValue == 257 || layer.intValue == 258 ||
+                        (layer.intValue == 0 && width.doubleValue >= 500 && height.doubleValue >= 300)
+                }
+                guard !busy else { return }
+                if #available(macOS 14.0, *) {
+                    NSApp.yieldActivation(to: previous)
+                    previous.activate()
+                } else {
+                    previous.activate(options: [.activateIgnoringOtherApps])
+                }
             }
-            if !busy { previous.activate(options: []) }
         }
     }
     @objc func showSettings(_ sender: NSButton) {
@@ -461,10 +496,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !capturePending else { return }
         areaResetTimer?.invalidate()
         focusGeneration = UUID()
-        previousApplication = NSWorkspace.shared.frontmostApplication
+        rememberExternalApplication(NSWorkspace.shared.frontmostApplication)
+        previousApplication = lastExternalApplication
         activeMode = captureMode
         let url = URL(string: "macshot://\(activeMode)")!
-        guard NSWorkspace.shared.urlForApplication(toOpen: url) != nil else {
+        guard let macShotURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             scheduleAreaReset()
@@ -484,6 +520,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.countdown?.invalidate()
             self.countdown = nil
             self.remainingSeconds = 0
+            self.rememberExternalApplication(NSWorkspace.shared.frontmostApplication)
+            self.previousApplication = self.lastExternalApplication
             self.captureStarted = true
             self.mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
                 guard let self = self, self.capturePending, self.captureSession == session, self.activeMode != "scroll-capture", !self.isVideoCapture else { return }
@@ -502,13 +540,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             self.watchCaptureOverlay(session: session)
-            if !NSWorkspace.shared.open(url) {
-                self.restorePanel()
-                NSApp.activate(ignoringOtherApps: true)
-                let alert = NSAlert()
-                alert.messageText = "Could not start MacShot"
-                alert.informativeText = "Open MacShot and ensure Enable macshot:// URL scheme is checked in its settings."
-                alert.runModal()
+            // Plain NSWorkspace.open(url) activates MacShot *before* its URL
+            // handler snapshots the previous app, losing the real capture target.
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = false
+            NSWorkspace.shared.open([url], withApplicationAt: macShotURL, configuration: configuration) { [weak self] _, error in
+                guard error != nil else { return }
+                DispatchQueue.main.async {
+                    guard let self = self, self.capturePending, self.captureSession == session else { return }
+                    self.captureStarted = false
+                    self.restorePanel()
+                    NSApp.activate(ignoringOtherApps: true)
+                    let alert = NSAlert()
+                    alert.messageText = "Could not start MacShot"
+                    alert.informativeText = "Open MacShot and ensure Enable macshot:// URL scheme is checked in its settings."
+                    alert.runModal()
+                }
             }
         }
         if delaySeconds == 0 {
@@ -537,7 +584,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer?.invalidate()
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.18"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.19"
         alert.messageText = "MacShotEdgeRibbon \(version)"
         alert.informativeText = "Created by BocaTechForce — IT. Simplified.\n\nbocatechforce.com\n\nA free, source-available floating companion for MacShot.\nCopyright © 2026 BocaTechForce. BocaTechForce Free Use — No Sale License.\n\nIndependent project; not affiliated with or endorsed by MacShot. MacShot is installed separately and retains its own license.\n\nProvided as is, without warranty. See the bundled LICENSE and THIRD_PARTY_NOTICES.md for details."
         alert.addButton(withTitle: "Close")
