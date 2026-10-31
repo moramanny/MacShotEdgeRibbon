@@ -79,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayWatcher: Timer?
     var areaResetSeconds = 30
     var areaResetTimer: Timer?
+    var delayResetSeconds = 30
+    var delayResetTimer: Timer?
     var restoreFocus = true
     var previousApplication: NSRunningApplication?
     var lastExternalApplication: NSRunningApplication?
@@ -95,6 +97,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             areaResetSeconds = defaults.integer(forKey: "areaResetSeconds")
         }
         if ![0, 15, 30, 60].contains(areaResetSeconds) { areaResetSeconds = 30 }
+        if defaults.object(forKey: "delayResetSeconds") != nil {
+            delayResetSeconds = defaults.integer(forKey: "delayResetSeconds")
+        }
+        if ![0, 15, 30, 60].contains(delayResetSeconds) { delayResetSeconds = 30 }
         if defaults.object(forKey: "restoreFocus") != nil { restoreFocus = defaults.bool(forKey: "restoreFocus") }
         let saved = defaults.double(forKey: "size")
         size = saved > 0 ? CGFloat(saved) : 1
@@ -132,6 +138,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         resetItem.submenu = resetMenu
         menu.addItem(resetItem)
+        let delayResetItem = NSMenuItem(title: "Return delay to Off after idle", action: nil, keyEquivalent: "")
+        let delayResetMenu = NSMenu()
+        for seconds in [0, 15, 30, 60] {
+            let item = NSMenuItem(title: seconds == 0 ? "Off" : "\(seconds) seconds", action: #selector(changeDelayReset(_:)), keyEquivalent: "")
+            item.tag = seconds
+            item.target = self
+            item.state = seconds == delayResetSeconds ? .on : .off
+            delayResetMenu.addItem(item)
+        }
+        delayResetItem.submenu = delayResetMenu
+        menu.addItem(delayResetItem)
         let focusItem = NSMenuItem(title: "Restore previous app after screenshot", action: #selector(toggleRestoreFocus(_:)), keyEquivalent: "")
         focusItem.target = self
         focusItem.state = restoreFocus ? .on : .off
@@ -148,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         render()
         panel.orderFrontRegardless()
         scheduleAreaReset()
+        scheduleDelayReset()
     }
     func rememberExternalApplication(_ application: NSRunningApplication?) {
         guard let application = application,
@@ -327,6 +345,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.render()
         }
     }
+    @objc func changeDelayReset(_ sender: NSMenuItem) {
+        delayResetSeconds = sender.tag
+        defaults.set(delayResetSeconds, forKey: "delayResetSeconds")
+        for item in sender.menu?.items ?? [] { item.state = item.tag == delayResetSeconds ? .on : .off }
+        scheduleDelayReset()
+    }
+    func scheduleDelayReset() {
+        delayResetTimer?.invalidate()
+        delayResetTimer = nil
+        guard delayResetSeconds > 0, delaySeconds > 0, !capturePending else { return }
+        delayResetTimer = Timer.scheduledTimer(withTimeInterval: Double(delayResetSeconds), repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            if self.menuOpen || self.dragging { self.scheduleDelayReset(); return }
+            guard !self.capturePending else { return }
+            self.applyDelay(0)
+        }
+    }
     @objc func toggleRestoreFocus(_ sender: NSMenuItem) {
         restoreFocus.toggle()
         defaults.set(restoreFocus, forKey: "restoreFocus")
@@ -402,6 +437,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let items = settingsMenu.items.first(where: { $0.title == "Capture delay" })?.submenu?.items {
             for item in items { item.state = item.tag == seconds ? .on : .off }
         }
+        scheduleDelayReset()
         render()
         scheduleHide()
     }
@@ -440,6 +476,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         render()
         panel.orderFrontRegardless()
         scheduleAreaReset()
+        scheduleDelayReset()
         if completedScreenshot { restorePreviousFocus() }
     }
     @objc func appDeactivated(_ notification: Notification) {
@@ -495,6 +532,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func captureArea() {
         guard !capturePending else { return }
         areaResetTimer?.invalidate()
+        delayResetTimer?.invalidate()
         focusGeneration = UUID()
         rememberExternalApplication(NSWorkspace.shared.frontmostApplication)
         previousApplication = lastExternalApplication
@@ -504,6 +542,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             scheduleAreaReset()
+            scheduleDelayReset()
             alert.messageText = "MacShot area capture is unavailable"
             alert.informativeText = "Install and launch MacShot from Applications. If needed, update MacShot to a version that supports macshot://capture, then try again."
             alert.runModal()
@@ -584,7 +623,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer?.invalidate()
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.19"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.20"
         alert.messageText = "MacShotEdgeRibbon \(version)"
         alert.informativeText = "Created by BocaTechForce — IT. Simplified.\n\nbocatechforce.com\n\nA free, source-available floating companion for MacShot.\nCopyright © 2026 BocaTechForce. BocaTechForce Free Use — No Sale License.\n\nIndependent project; not affiliated with or endorsed by MacShot. MacShot is installed separately and retains its own license.\n\nProvided as is, without warranty. See the bundled LICENSE and THIRD_PARTY_NOTICES.md for details."
         alert.addButton(withTitle: "Close")

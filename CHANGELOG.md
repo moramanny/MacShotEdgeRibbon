@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20 — 2026-10-31
+- Add independent “Return delay to Off after idle” setting: Off, 15, 30 (default),
+  or 60 seconds. Persist the choice; keep the popup and gear-menu delay in sync.
+- Pause delay reset during countdown/capture/recording, then restart its interval
+  when the session ends or is cancelled. Defer while the gear menu or drag is active.
+- Retain the 0.19 focus fix confirmed by the owner on their Mac. The new delay
+  reset requires Mac testing.
+
 ## 0.19 — 2026-10-31
 - Launch capture URLs without activating MacShot first, preserving the prior app.
 - Track the last external foreground app; refresh it after any capture countdown.

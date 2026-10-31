@@ -53,3 +53,12 @@ skip capture overlays and large normal editor/history windows. No Accessibility
 permission or explicit browser-window activation is used. Version 0.18 failed
 the owner's focus test; the owner confirmed 0.19 restores focus on their Mac
 on 2026-10-31. Broader compatibility remains subject to regression testing.
+
+## Automatic delay reset (0.20)
+
+A separate one-shot delayResetTimer uses the persisted delayResetSeconds value
+(0 disables reset; 15, 30, 60 enable it). It is armed by applyDelay, changing the
+reset preference, startup and restorePanel. Capture entry invalidates it before
+any countdown. The callback uses applyDelay(0), updating persistence, the capture
+delay gear submenu and the panel popup together. Delay and mode reset are
+independent. Active sessions cannot be altered by an expired reset timer.

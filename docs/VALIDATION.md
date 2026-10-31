@@ -41,3 +41,16 @@ MacShot-version compatibility based on one successful personal test.
 - On Mac: capture from browser, Finder, Terminal; immediately test Command–`/typing.
 - Test Escape, delay and changing apps during countdown, clicking the preview to edit,
   History, scrolling, and video. Check that focus retries yield to user interaction.
+
+## 0.20 validation
+- Shell syntax and whitespace checks passed; ZIP integrity verified.
+- New delay-reset behavior awaits native Mac testing; the 0.19 focus fix was
+  owner-confirmed before this change.
+- Set Delay: 5s and delay reset: 15s; wait without capturing and confirm both
+  delay controls show Off. Repeat with 30s and 60s.
+- Set reset: Off; confirm the chosen capture delay stays set after 60 seconds.
+- Start a delayed capture before timeout; confirm countdown completes normally
+  and the reset interval starts again only after capture/cancel.
+- Verify long scrolling/recording sessions are not interrupted by the timer.
+- Set different Area/delay timeouts and verify each resets independently.
+- Restart and verify reset preferences persist; retest screenshot keyboard focus.
