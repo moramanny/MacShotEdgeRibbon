@@ -5,7 +5,8 @@
 - Track the last external foreground app; refresh it after any capture countdown.
 - Use cooperative activation on macOS 14+, with bounded focus retries that stop
   on user input or a deliberate switch to another app.
-- Version 0.18 focus restoration failed in owner testing; 0.19 needs Mac verification.
+- Version 0.18 focus restoration failed in owner testing; the owner confirmed
+  0.19 restores focus correctly on their Mac on 2026-10-31.
 
 ## 0.18 — 2026-10-31
 - Add configurable return to Area after 15, 30 (default), or 60 idle seconds, or Off.

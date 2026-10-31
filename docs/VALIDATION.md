@@ -31,6 +31,9 @@ MacShot-version compatibility based on one successful personal test.
 - Verify idle mode reset pauses during capture and restarts after completion/cancel.
 
 ## 0.19 validation
+- **Owner-confirmed, 2026-10-31:** built and ran 0.19 on their Mac; focus
+  restoration after screenshot capture works. This confirms the reported fix
+  on that Mac, not every capture mode or macOS version.
 - Owner reports 0.18 did not restore keyboard focus.
 - Inspected upstream MacShot URL handling and prior-app activation implementation.
 - Changed launch to avoid activation before MacShot snapshots its previous app.

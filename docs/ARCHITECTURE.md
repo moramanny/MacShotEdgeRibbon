@@ -51,4 +51,5 @@ The fallback handoff uses yieldActivation/activate on macOS 14+, and
 activateIgnoringOtherApps on earlier systems. Window metadata heuristics still
 skip capture overlays and large normal editor/history windows. No Accessibility
 permission or explicit browser-window activation is used. Version 0.18 failed
-the owner's focus test; version 0.19 requires native testing.
+the owner's focus test; the owner confirmed 0.19 restores focus on their Mac
+on 2026-10-31. Broader compatibility remains subject to regression testing.

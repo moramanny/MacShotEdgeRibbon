@@ -124,8 +124,8 @@ See [third-party notices](THIRD_PARTY_NOTICES.md).
 Version 0.19 fixes the capture launch and focus handoff alongside configurable
 return to Area and optional screenshot focus
 restoration to the branded personal prototype. Earlier builds were tested
-interactively by the owner on a Mac. The 0.19 changes are awaiting native Mac
-build and behavior confirmation. This preparation environment is Linux and
+interactively by the owner on a Mac. On 2026-10-31, the owner built and tested 0.19 on a Mac and confirmed
+that focus returns correctly after a screenshot. This preparation environment is Linux and
 cannot verify AppKit behavior.
 See [validation checklist](docs/VALIDATION.md) before distributing binaries.
 
@@ -152,7 +152,9 @@ Open the ribbon's gear menu:
   this option off. It restores the app, not an explicitly selected browser window.
 
 These changes require testing on macOS. The Linux development environment cannot
-compile AppKit or reproduce MacShot's preview focus behavior. The owner reported that 0.18 did not restore focus; 0.19 is not yet confirmed.
+compile AppKit or reproduce MacShot's preview focus behavior. The owner reported that 0.18 did not restore focus and confirmed that 0.19
+fixes it on their Mac (2026-10-31). Other scenarios below remain a regression
+checklist, not claims of completed testing.
 Test Area → capture →
 Command–`, Area → Escape, delayed capture, full-screen, scrolling, recording, and
 manual History/editor use. Test each reset interval and Off, including a recording
