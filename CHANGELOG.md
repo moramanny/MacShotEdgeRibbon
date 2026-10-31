@@ -5,8 +5,9 @@
   or 60 seconds. Persist the choice; keep the popup and gear-menu delay in sync.
 - Pause delay reset during countdown/capture/recording, then restart its interval
   when the session ends or is cancelled. Defer while the gear menu or drag is active.
-- Retain the 0.19 focus fix confirmed by the owner on their Mac. The new delay
-  reset requires Mac testing.
+- Retain the 0.19 focus fix confirmed by the owner on their Mac.
+- Owner tested 0.20 and confirmed the automatic Area and capture-delay resets
+  work on their Mac (2026-10-31).
 
 ## 0.19 — 2026-10-31
 - Launch capture URLs without activating MacShot first, preserving the prior app.

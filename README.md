@@ -124,7 +124,8 @@ See [third-party notices](THIRD_PARTY_NOTICES.md).
 Version 0.20 adds an independent automatic delay reset to the branded personal
 prototype, alongside return to Area and screenshot focus restoration. Earlier builds were tested
 interactively by the owner on a Mac. On 2026-10-31, the owner built and tested 0.19 on a Mac and confirmed
-that focus returns correctly after a screenshot. This preparation environment is Linux and
+that focus returns correctly after a screenshot. The owner also tested 0.20
+and confirmed both automatic resets (Area and capture delay) work on their Mac. This preparation environment is Linux and
 cannot verify AppKit behavior.
 See [validation checklist](docs/VALIDATION.md) before distributing binaries.
 
@@ -158,9 +159,9 @@ Open the ribbon's gear menu:
   Window detection is heuristic; if your MacShot editor behaves differently, turn
   this option off. It restores the app, not an explicitly selected browser window.
 
-These changes require testing on macOS. The Linux development environment cannot
+Validation is based on owner testing on one Mac. The Linux development environment cannot
 compile AppKit or reproduce MacShot's preview focus behavior. The owner reported that 0.18 did not restore focus and confirmed that 0.19
-fixes it on their Mac (2026-10-31). The new 0.20 delay-reset behavior still needs native Mac testing. Other scenarios
+fixes it on their Mac (2026-10-31). The owner also confirmed both automatic resets work in 0.20 (2026-10-31). Other scenarios
 below remain a regression checklist, not claims of completed testing.
 Test Area → capture →
 Command–`, Area → Escape, delayed capture, full-screen, scrolling, recording, and

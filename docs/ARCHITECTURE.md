@@ -62,3 +62,6 @@ reset preference, startup and restorePanel. Capture entry invalidates it before
 any countdown. The callback uses applyDelay(0), updating persistence, the capture
 delay gear submenu and the panel popup together. Delay and mode reset are
 independent. Active sessions cannot be altered by an expired reset timer.
+
+The owner tested version 0.20 and confirmed both automatic resets work on their
+Mac on 2026-10-31. See VALIDATION.md for the scope of this confirmation.

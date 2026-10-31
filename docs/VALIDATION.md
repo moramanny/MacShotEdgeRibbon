@@ -44,8 +44,11 @@ MacShot-version compatibility based on one successful personal test.
 
 ## 0.20 validation
 - Shell syntax and whitespace checks passed; ZIP integrity verified.
-- New delay-reset behavior awaits native Mac testing; the 0.19 focus fix was
-  owner-confirmed before this change.
+- **Owner-confirmed, 2026-10-31:** tested 0.20 on their Mac and confirmed
+  both the automatic return to Area and automatic return of delay to Off work.
+  The 0.19 focus fix was owner-confirmed before this change.
+- The scenarios below remain a regression checklist; individual timeouts,
+  restart persistence and long recordings were not separately reported.
 - Set Delay: 5s and delay reset: 15s; wait without capturing and confirm both
   delay controls show Off. Repeat with 30s and 60s.
 - Set reset: Off; confirm the chosen capture delay stays set after 60 seconds.
