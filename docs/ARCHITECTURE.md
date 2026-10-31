@@ -32,3 +32,17 @@ Preferences use the retained bundle ID com.bocatechforce.edgecapture.prototype
 for compatibility with the personal prototype. Position is normalized along
 the main screen's visible height. Multiple-monitor selection, robust versioned
 upstream state reporting, and signed/notarized distribution remain future work.
+
+## Mode reset and focus restoration (0.18)
+
+A one-shot timer uses the persisted areaResetSeconds preference (0, 15, 30, 60).
+It is invalidated when capture begins and rearmed after panel restoration.
+Reset changes only captureMode; activeMode remains the current session's mode.
+
+The restoreFocus preference enables one guarded activation of the foreground
+application remembered when capture was requested. The attempt runs 250 ms
+after panel restoration, only if MacShot remains foreground. A generation token
+cancels stale requests when another capture or History action begins. Window
+metadata heuristics skip capture overlays and large normal editor/history
+windows. No Accessibility permission or explicit browser-window activation is
+used. This behavior must be verified against the installed MacShot version.

@@ -22,3 +22,10 @@ On a Mac before distributing a build:
 Record the tested macOS version, CPU architecture, MacShot version and result.
 Window-layer heuristics may break after upstream changes. Do not claim universal
 MacShot-version compatibility based on one successful personal test.
+
+
+## 0.18 validation
+- Shell syntax checked with bash -n; ZIP integrity checked locally.
+- AppKit compilation and GUI behavior remain unverified until built on a Mac.
+- Verify focus restoration does not interrupt the editor, history, scrolling, or video.
+- Verify idle mode reset pauses during capture and restarts after completion/cancel.

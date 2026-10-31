@@ -77,6 +77,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var countdown: Timer?
     var captureStarted = false
     var overlayWatcher: Timer?
+    var areaResetSeconds = 30
+    var areaResetTimer: Timer?
+    var restoreFocus = true
+    var previousApplication: NSRunningApplication?
+    var focusGeneration = UUID()
     let defaults = UserDefaults.standard
     var screen: NSScreen { NSScreen.main ?? NSScreen.screens[0] }
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -85,6 +90,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !["capture", "capture-fullscreen", "scroll-capture", "record", "record-fullscreen"].contains(captureMode) { captureMode = "capture" }
         delaySeconds = defaults.integer(forKey: "delaySeconds")
         if ![0, 3, 5, 10].contains(delaySeconds) { delaySeconds = 0 }
+        if defaults.object(forKey: "areaResetSeconds") != nil {
+            areaResetSeconds = defaults.integer(forKey: "areaResetSeconds")
+        }
+        if ![0, 15, 30, 60].contains(areaResetSeconds) { areaResetSeconds = 30 }
+        if defaults.object(forKey: "restoreFocus") != nil { restoreFocus = defaults.bool(forKey: "restoreFocus") }
         let saved = defaults.double(forKey: "size")
         size = saved > 0 ? CGFloat(saved) : 1
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -110,6 +120,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         delayItem.submenu = delayMenu
         menu.addItem(delayItem)
+        let resetItem = NSMenuItem(title: "Return to Area after idle", action: nil, keyEquivalent: "")
+        let resetMenu = NSMenu()
+        for seconds in [0, 15, 30, 60] {
+            let item = NSMenuItem(title: seconds == 0 ? "Off" : "\(seconds) seconds", action: #selector(changeAreaReset(_:)), keyEquivalent: "")
+            item.tag = seconds
+            item.target = self
+            item.state = seconds == areaResetSeconds ? .on : .off
+            resetMenu.addItem(item)
+        }
+        resetItem.submenu = resetMenu
+        menu.addItem(resetItem)
+        let focusItem = NSMenuItem(title: "Restore previous app after screenshot", action: #selector(toggleRestoreFocus(_:)), keyEquivalent: "")
+        focusItem.target = self
+        focusItem.state = restoreFocus ? .on : .off
+        menu.addItem(focusItem)
         menu.addItem(.separator())
         add(menu, "About MacShotEdgeRibbon…", #selector(showAbout))
         add(menu, "Login startup instructions…", #selector(loginHelp))
@@ -119,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(appDeactivated(_:)), name: NSWorkspace.didDeactivateApplicationNotification, object: nil)
         render()
         panel.orderFrontRegardless()
+        scheduleAreaReset()
     }
     func add(_ menu: NSMenu, _ title: String, _ action: Selector) {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -250,6 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func showHistory() {
         guard !capturePending else { return }
+        focusGeneration = UUID()
         timer?.invalidate()
         expanded = false
         render()
@@ -265,6 +292,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func changeMode(_ sender: NSPopUpButton) {
         captureMode = sender.selectedItem?.representedObject as? String ?? "capture"
         defaults.set(captureMode, forKey: "captureMode")
+        scheduleAreaReset()
+    }
+    @objc func changeAreaReset(_ sender: NSMenuItem) {
+        areaResetSeconds = sender.tag
+        defaults.set(areaResetSeconds, forKey: "areaResetSeconds")
+        for item in sender.menu?.items ?? [] { item.state = item.tag == areaResetSeconds ? .on : .off }
+        scheduleAreaReset()
+    }
+    func scheduleAreaReset() {
+        areaResetTimer?.invalidate()
+        areaResetTimer = nil
+        guard areaResetSeconds > 0, captureMode != "capture", !capturePending else { return }
+        areaResetTimer = Timer.scheduledTimer(withTimeInterval: Double(areaResetSeconds), repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            // Do not rebuild controls while a menu or drag is in progress.
+            if self.menuOpen || self.dragging { self.scheduleAreaReset(); return }
+            guard !self.capturePending else { return }
+            self.captureMode = "capture"
+            self.defaults.set("capture", forKey: "captureMode")
+            self.render()
+        }
+    }
+    @objc func toggleRestoreFocus(_ sender: NSMenuItem) {
+        restoreFocus.toggle()
+        defaults.set(restoreFocus, forKey: "restoreFocus")
+        sender.state = restoreFocus ? .on : .off
+    }
+    func restorePreviousFocus() {
+        guard restoreFocus, !isVideoCapture,
+              let previous = previousApplication, !previous.isTerminated,
+              previous.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+              !(previous.bundleIdentifier ?? "").lowercased().contains("macshot") else { return }
+        let generation = focusGeneration
+        // One short attempt, not a loop that could fight deliberate app changes.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self = self, self.restoreFocus, !self.capturePending,
+                  self.focusGeneration == generation, !previous.isTerminated,
+                  let front = NSWorkspace.shared.frontmostApplication,
+                  (front.bundleIdentifier ?? "").lowercased().contains("macshot"),
+                  let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return }
+            // Leave selection/recording HUDs and normal editor/history windows alone.
+            let busy = windows.contains { info in
+                guard let pid = info[kCGWindowOwnerPID as String] as? NSNumber,
+                      pid.int32Value == front.processIdentifier,
+                      let layer = info[kCGWindowLayer as String] as? NSNumber,
+                      let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                      let width = bounds["Width"] as? NSNumber,
+                      let height = bounds["Height"] as? NSNumber else { return false }
+                return layer.intValue == 257 || layer.intValue == 258 ||
+                    (layer.intValue == 0 && width.doubleValue >= 500 && height.doubleValue >= 300)
+            }
+            if !busy { previous.activate(options: []) }
+        }
     }
     @objc func showSettings(_ sender: NSButton) {
         timer?.invalidate()
@@ -309,6 +389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func smaller() { size = max(0.75, size - 0.15); defaults.set(Double(size), forKey: "size"); render() }
     @objc func larger() { size = min(1.6, size + 0.15); defaults.set(Double(size), forKey: "size"); render() }
     func restorePanel() {
+        let completedScreenshot = capturePending && captureStarted && !isVideoCapture
         overlayWatcher?.invalidate()
         overlayWatcher = nil
         countdown?.invalidate()
@@ -323,6 +404,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         expanded = false
         render()
         panel.orderFrontRegardless()
+        scheduleAreaReset()
+        if completedScreenshot { restorePreviousFocus() }
     }
     @objc func appDeactivated(_ notification: Notification) {
         guard capturePending, captureStarted, activeMode != "scroll-capture", !isVideoCapture,
@@ -376,11 +459,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func captureArea() {
         guard !capturePending else { return }
+        areaResetTimer?.invalidate()
+        focusGeneration = UUID()
+        previousApplication = NSWorkspace.shared.frontmostApplication
         activeMode = captureMode
         let url = URL(string: "macshot://\(activeMode)")!
         guard NSWorkspace.shared.urlForApplication(toOpen: url) != nil else {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
+            scheduleAreaReset()
             alert.messageText = "MacShot area capture is unavailable"
             alert.informativeText = "Install and launch MacShot from Applications. If needed, update MacShot to a version that supports macshot://capture, then try again."
             alert.runModal()
@@ -450,7 +537,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer?.invalidate()
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.17"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.18"
         alert.messageText = "MacShotEdgeRibbon \(version)"
         alert.informativeText = "Created by BocaTechForce — IT. Simplified.\n\nbocatechforce.com\n\nA free, source-available floating companion for MacShot.\nCopyright © 2026 BocaTechForce. BocaTechForce Free Use — No Sale License.\n\nIndependent project; not affiliated with or endorsed by MacShot. MacShot is installed separately and retains its own license.\n\nProvided as is, without warranty. See the bundled LICENSE and THIRD_PARTY_NOTICES.md for details."
         alert.addButton(withTitle: "Close")

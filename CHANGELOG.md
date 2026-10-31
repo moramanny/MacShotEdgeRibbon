@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18 — 2026-10-31
+- Add configurable return to Area after 15, 30 (default), or 60 idle seconds, or Off.
+- Pause reset while capturing/recording; restart the interval after completion/cancel.
+- Add optional previous-app focus restoration after screenshots (enabled by default).
+- Keep editor/history and recording controls alone; focus behavior needs Mac testing.
+
 ## 0.17 — 2026-10-28
 - Prepare a standalone repository with documentation, third-party notices,
   contribution guidance and a custom free-use/no-sale source-available license.
