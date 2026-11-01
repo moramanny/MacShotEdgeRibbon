@@ -13,6 +13,18 @@ MacShot must be installed separately.
 > ([official source and releases](https://github.com/sw33tLie/macshot)), launch
 > it, and enable its `macshot://` URL scheme before using this companion.
 
+## Choose the ribbon or the complete app
+
+This standalone ribbon remains available for people who want to keep using
+original MacShot. It is not being removed or replaced.
+
+**SnapKeep** is the separate BocaTechForce app with capture, an integrated
+ribbon, a larger Library, and image/video editing. Its GitHub publication is
+being prepared; see [moramanny's projects](https://github.com/moramanny).
+Once published, the full app will live at https://github.com/moramanny/SnapKeep.
+The standalone ribbon continues to require original MacShot; SnapKeep bundles
+its own ribbon and does not require this companion to be installed.
+
 ## Visual guide
 
 ![Illustrated ribbon controls: settings, history, quit, capture, delay and mode](docs/images/ribbon-controls.svg)
